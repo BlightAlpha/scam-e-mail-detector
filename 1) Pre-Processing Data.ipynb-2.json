@@ -1,0 +1,1829 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "8c25a03c",
+   "metadata": {},
+   "source": [
+    "# Notebook Imports"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 118,
+   "id": "10160944",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from os import walk\n",
+    "from os.path import join\n",
+    "\n",
+    "import pandas as pd\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "import nltk\n",
+    "from nltk.stem import PorterStemmer\n",
+    "from nltk.stem import SnowballStemmer\n",
+    "from nltk.corpus import stopwords\n",
+    "from nltk.tokenize import word_tokenize\n",
+    "\n",
+    "from bs4 import BeautifulSoup\n",
+    "\n",
+    "import numpy as np\n",
+    "\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "%matplotlib inline"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6f30ea74",
+   "metadata": {},
+   "source": [
+    "# Constant "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e5e90e54",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    ### this file for testing ###\n",
+    "EXAMPLE_FILE = 'SpamData/SpamData/01_Processing/practice_email.txt'\n",
+    "SPAM_1_PATH = 'SpamData/SpamData/01_Processing/spam_assassin_corpus/spam_1'\n",
+    "SPAM_2_PATH = 'SpamData/SpamData/01_Processing/spam_assassin_corpus/spam_2'\n",
+    "EASY_NONSPAM_1_PATH = 'SpamData/SpamData/01_Processing/spam_assassin_corpus/easy_ham_1'\n",
+    "EASY_NONSPAM_2_PATH = 'SpamData/SpamData/01_Processing/spam_assassin_corpus/easy_ham_2'\n",
+    "\n",
+    "SPAM_CAT = 1\n",
+    "HAM_CAT = 0\n",
+    "VOCAB_SIZE = 2500\n",
+    "\n",
+    "DATA_JSON_FILE = 'SpamData/SpamData/01_Processing/email-text-data.json'\n",
+    "WORD_ID_FILE = 'SpamData/SpamData/01_Processing/word-by-id.csv'\n",
+    "\n",
+    "TRAINING_DATA_FILE = 'SpamData/SpamData/02_Training/train-data.txt'\n",
+    "TEST_DATA_FILE = 'SpamData/SpamData/02_Training/test-data.txt'\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "98cee359",
+   "metadata": {},
+   "source": [
+    "# Reading Files"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 120,
+   "id": "31a78101",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'str'>\n",
+      "From exmh-workers-admin@redhat.com  Thu Aug 22 12:36:23 2002\n",
+      "Return-Path: <exmh-workers-admin@spamassassin.taint.org>\n",
+      "Delivered-To: zzzz@localhost.netnoteinc.com\n",
+      "Received: from localhost (localhost [127.0.0.1])\n",
+      "\tby phobos.labs.netnoteinc.com (Postfix) with ESMTP id D03E543C36\n",
+      "\tfor <zzzz@localhost>; Thu, 22 Aug 2002 07:36:16 -0400 (EDT)\n",
+      "Received: from phobos [127.0.0.1]\n",
+      "\tby localhost with IMAP (fetchmail-5.9.0)\n",
+      "\tfor zzzz@localhost (single-drop); Thu, 22 Aug 2002 12:36:16 +0100 (IST)\n",
+      "Received: from listman.spamassassin.taint.org (listman.spamassassin.taint.org [66.187.233.211]) by\n",
+      "    dogma.slashnull.org (8.11.6/8.11.6) with ESMTP id g7MBYrZ04811 for\n",
+      "    <zzzz-exmh@spamassassin.taint.org>; Thu, 22 Aug 2002 12:34:53 +0100\n",
+      "Received: from listman.spamassassin.taint.org (localhost.localdomain [127.0.0.1]) by\n",
+      "    listman.redhat.com (Postfix) with ESMTP id 8386540858; Thu, 22 Aug 2002\n",
+      "    07:35:02 -0400 (EDT)\n",
+      "Delivered-To: exmh-workers@listman.spamassassin.taint.org\n",
+      "Received: from int-mx1.corp.spamassassin.taint.org (int-mx1.corp.spamassassin.taint.org\n",
+      "    [172.16.52.254]) by listman.redhat.com (Postfix) with ESMTP id 10CF8406D7\n",
+      "    for <exmh-workers@listman.redhat.com>; Thu, 22 Aug 2002 07:34:10 -0400\n",
+      "    (EDT)\n",
+      "Received: (from mail@localhost) by int-mx1.corp.spamassassin.taint.org (8.11.6/8.11.6)\n",
+      "    id g7MBY7g11259 for exmh-workers@listman.redhat.com; Thu, 22 Aug 2002\n",
+      "    07:34:07 -0400\n",
+      "Received: from mx1.spamassassin.taint.org (mx1.spamassassin.taint.org [172.16.48.31]) by\n",
+      "    int-mx1.corp.redhat.com (8.11.6/8.11.6) with SMTP id g7MBY7Y11255 for\n",
+      "    <exmh-workers@redhat.com>; Thu, 22 Aug 2002 07:34:07 -0400\n",
+      "Received: from ratree.psu.ac.th ([202.28.97.6]) by mx1.spamassassin.taint.org\n",
+      "    (8.11.6/8.11.6) with SMTP id g7MBIhl25223 for <exmh-workers@redhat.com>;\n",
+      "    Thu, 22 Aug 2002 07:18:55 -0400\n",
+      "Received: from delta.cs.mu.OZ.AU (delta.coe.psu.ac.th [172.30.0.98]) by\n",
+      "    ratree.psu.ac.th (8.11.6/8.11.6) with ESMTP id g7MBWel29762;\n",
+      "    Thu, 22 Aug 2002 18:32:40 +0700 (ICT)\n",
+      "Received: from munnari.OZ.AU (localhost [127.0.0.1]) by delta.cs.mu.OZ.AU\n",
+      "    (8.11.6/8.11.6) with ESMTP id g7MBQPW13260; Thu, 22 Aug 2002 18:26:25\n",
+      "    +0700 (ICT)\n",
+      "From: Robert Elz <kre@munnari.OZ.AU>\n",
+      "To: Chris Garrigues <cwg-dated-1030377287.06fa6d@DeepEddy.Com>\n",
+      "Cc: exmh-workers@spamassassin.taint.org\n",
+      "Subject: Re: New Sequences Window\n",
+      "In-Reply-To: <1029945287.4797.TMDA@deepeddy.vircio.com>\n",
+      "References: <1029945287.4797.TMDA@deepeddy.vircio.com>\n",
+      "    <1029882468.3116.TMDA@deepeddy.vircio.com> <9627.1029933001@munnari.OZ.AU>\n",
+      "    <1029943066.26919.TMDA@deepeddy.vircio.com>\n",
+      "    <1029944441.398.TMDA@deepeddy.vircio.com>\n",
+      "MIME-Version: 1.0\n",
+      "Content-Type: text/plain; charset=us-ascii\n",
+      "Message-Id: <13258.1030015585@munnari.OZ.AU>\n",
+      "X-Loop: exmh-workers@spamassassin.taint.org\n",
+      "Sender: exmh-workers-admin@spamassassin.taint.org\n",
+      "Errors-To: exmh-workers-admin@spamassassin.taint.org\n",
+      "X-Beenthere: exmh-workers@spamassassin.taint.org\n",
+      "X-Mailman-Version: 2.0.1\n",
+      "Precedence: bulk\n",
+      "List-Help: <mailto:exmh-workers-request@spamassassin.taint.org?subject=help>\n",
+      "List-Post: <mailto:exmh-workers@spamassassin.taint.org>\n",
+      "List-Subscribe: <https://listman.spamassassin.taint.org/mailman/listinfo/exmh-workers>,\n",
+      "    <mailto:exmh-workers-request@redhat.com?subject=subscribe>\n",
+      "List-Id: Discussion list for EXMH developers <exmh-workers.spamassassin.taint.org>\n",
+      "List-Unsubscribe: <https://listman.spamassassin.taint.org/mailman/listinfo/exmh-workers>,\n",
+      "    <mailto:exmh-workers-request@redhat.com?subject=unsubscribe>\n",
+      "List-Archive: <https://listman.spamassassin.taint.org/mailman/private/exmh-workers/>\n",
+      "Date: Thu, 22 Aug 2002 18:26:25 +0700\n",
+      "\n",
+      "\n",
+      "Dear Mr Still\n",
+      "\n",
+      "Good tidings to you and all your staff for the festive season ahead (Christmas).\n",
+      "Now to the crux of the matter-in-hand: I am a fully qualified Santa Claus and am wondering whether you might consider me to run my own \"Santa's Grotto\" in your store.\n",
+      "But WAIT! You're probably thinking: \"What makes him so special?\"\n",
+      "Well, first of all, I have made several changes to the characterisation of Father Christmas. Rather than greeting the children with shouts of \"Ho, ho, ho!\" I prefer to whisper the phrase \"Dependence is not unfathomable in this cruel world we live in\". In addition, my gifts are ALL hand-made, ranging from felt hoops to vanilla-pod holders.\n",
+      "You will note also, from the enclosed sketch, that I have radically redesigned Santa's outfit and have renamed my character \"Lord Buckles\". Would you be interested in employing me? I promise NEVER to let you down.\n",
+      "I look forward to hearing from you.\n",
+      "\n",
+      "Best wishes\n",
+      "Robin Cooper\n",
+      "[Excerpt from the book: The Timewaster Letters by Robin Cooper]\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "    ## this is for the purpose of testing the function ###\n",
+    "stream = open(EXAMPLE_FILE, encoding='latin-1')\n",
+    "message = stream.read()\n",
+    "stream.close()\n",
+    "\n",
+    "print(type(message))\n",
+    "print(message)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "effe0a7c",
+   "metadata": {},
+   "source": [
+    "# Gather the Data\n",
+    "\n",
+    "\n",
+    "# Generator Functions\n",
+    "\n",
+    "#### use generaot functin to loop all the file in dictionary that hold onto the spam e-mails\n",
+    "#### pass one e-mail at the time"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 121,
+   "id": "a69bc778",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'utf-8'"
+      ]
+     },
+     "execution_count": 121,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "import sys\n",
+    "sys.getfilesystemencoding()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 122,
+   "id": "1d50d8b1",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Dear Mr Still\n",
+      "\n",
+      "\n",
+      "\n",
+      "Good tidings to you and all your staff for the festive season ahead (Christmas).\n",
+      "\n",
+      "Now to the crux of the matter-in-hand: I am a fully qualified Santa Claus and am wondering whether you might consider me to run my own \"Santa's Grotto\" in your store.\n",
+      "\n",
+      "But WAIT! You're probably thinking: \"What makes him so special?\"\n",
+      "\n",
+      "Well, first of all, I have made several changes to the characterisation of Father Christmas. Rather than greeting the children with shouts of \"Ho, ho, ho!\" I prefer to whisper the phrase \"Dependence is not unfathomable in this cruel world we live in\". In addition, my gifts are ALL hand-made, ranging from felt hoops to vanilla-pod holders.\n",
+      "\n",
+      "You will note also, from the enclosed sketch, that I have radically redesigned Santa's outfit and have renamed my character \"Lord Buckles\". Would you be interested in employing me? I promise NEVER to let you down.\n",
+      "\n",
+      "I look forward to hearing from you.\n",
+      "\n",
+      "\n",
+      "\n",
+      "Best wishes\n",
+      "\n",
+      "Robin Cooper\n",
+      "\n",
+      "[Excerpt from the book: The Timewaster Letters by Robin Cooper]\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "    ###  This is for the purpose of testing ###\n",
+    "stream = open(EXAMPLE_FILE, encoding='latin-1')\n",
+    "\n",
+    "is_body = False\n",
+    "lines = []\n",
+    "\n",
+    "for line in stream:\n",
+    "    if is_body:\n",
+    "        lines.append(line)\n",
+    "    elif line == '\\n':\n",
+    "        is_body = True\n",
+    "\n",
+    "stream.close()\n",
+    "\n",
+    "email_body = '\\n'.join(lines)\n",
+    "print(email_body)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d4589def",
+   "metadata": {},
+   "source": [
+    "## E-mail body extraction "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 123,
+   "id": "1d81922c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # purpose : this function extact the body from the e-mail\n",
+    "    #           and extract file name\n",
+    "    # walk function where operating system come in\n",
+    "        # the walk func generate the file name \n",
+    "        # by walking the tree from the top to the bottom\n",
+    "        # and yeld it\n",
+    "            # directly path - root\n",
+    "            # direcly name  - directly name\n",
+    "            # file na\n",
+    "def email_body_generator(path):\n",
+    "        for root, dirnames, filenames in walk(path):\n",
+    "            for file_name in filenames:\n",
+    "                filepath = join(root, file_name)\n",
+    "                stream = open(filepath, encoding='latin-1')\n",
+    "                is_body = False\n",
+    "                lines = []\n",
+    "                for line in stream:\n",
+    "                        if is_body:\n",
+    "                            lines.append(line)\n",
+    "                        elif line == '\\n':\n",
+    "                            is_body = True\n",
+    "\n",
+    "                stream.close()\n",
+    "\n",
+    "                email_body = '\\n'.join(lines)\n",
+    "            \n",
+    "                yield file_name, email_body\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 124,
+   "id": "9d26219b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # purospe : the generator function is called iniside the loop\n",
+    "    #           to get data frame\n",
+    "def df_from_directory(path, classification):\n",
+    "        rows = []\n",
+    "        row_names = []\n",
+    "        for file_name, email_body in email_body_generator(path):\n",
+    "            rows.append({'MESSAGE': email_body, 'CATEGORY': classification})\n",
+    "            row_names.append(file_name)\n",
+    "        return pd.DataFrame(rows, index=row_names)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 125,
+   "id": "c323d402",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # call df from directory function \n",
+    "    # and create dataframe of the spam e-amil \n",
+    "spam_emails = df_from_directory(SPAM_1_PATH,SPAM_CAT)\n",
+    "\n",
+    "    # to extact all of the spam_2 path that contain spam e-mail\n",
+    "spam_emails = spam_emails.append(df_from_directory(SPAM_2_PATH, SPAM_CAT))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 126,
+   "id": "db69a36e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # call df from directory function \n",
+    "    # and create dataframe of the non-spam e-amil \n",
+    "ham_emails = df_from_directory(EASY_NONSPAM_1_PATH, HAM_CAT)\n",
+    "\n",
+    "    # to extact all of the spam_2 path that contain non-spam e-mail\n",
+    "ham_emails = ham_emails.append(df_from_directory(EASY_NONSPAM_2_PATH, HAM_CAT))\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 127,
+   "id": "ff78066a",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Shape of entire dataframe is  (5799, 2)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>MESSAGE</th>\n",
+       "      <th>CATEGORY</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>00001.7848dde101aa985090474a91ec93fcf0</th>\n",
+       "      <td>&lt;!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Tr...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>00002.d94f1b97e48ed3b553b3508d116e6a09</th>\n",
+       "      <td>1) Fight The Risk of Cancer!\\n\\nhttp://www.adc...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>00003.2ee33bc6eacdb11f38d052c44819ba6c</th>\n",
+       "      <td>1) Fight The Risk of Cancer!\\n\\nhttp://www.adc...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>00004.eac8de8d759b7e74154f142194282724</th>\n",
+       "      <td>##############################################...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>00005.57696a39d7d84318ce497886896bf90d</th>\n",
+       "      <td>I thought you might like these:\\n\\n1) Slim Dow...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                                                  MESSAGE  \\\n",
+       "00001.7848dde101aa985090474a91ec93fcf0  <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Tr...   \n",
+       "00002.d94f1b97e48ed3b553b3508d116e6a09  1) Fight The Risk of Cancer!\\n\\nhttp://www.adc...   \n",
+       "00003.2ee33bc6eacdb11f38d052c44819ba6c  1) Fight The Risk of Cancer!\\n\\nhttp://www.adc...   \n",
+       "00004.eac8de8d759b7e74154f142194282724  ##############################################...   \n",
+       "00005.57696a39d7d84318ce497886896bf90d  I thought you might like these:\\n\\n1) Slim Dow...   \n",
+       "\n",
+       "                                        CATEGORY  \n",
+       "00001.7848dde101aa985090474a91ec93fcf0         1  \n",
+       "00002.d94f1b97e48ed3b553b3508d116e6a09         1  \n",
+       "00003.2ee33bc6eacdb11f38d052c44819ba6c         1  \n",
+       "00004.eac8de8d759b7e74154f142194282724         1  \n",
+       "00005.57696a39d7d84318ce497886896bf90d         1  "
+      ]
+     },
+     "execution_count": 127,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "    # create data frame that hold all the e-mail\n",
+    "data = pd.concat([spam_emails, ham_emails])\n",
+    "#print('Shape of entire dataframe is ', data.shape)\n",
+    "#data.head()\n",
+    "\n",
+    "# As the resul from this section \n",
+    "# I take 5800 files from the local disk\n",
+    "# and convert them into data pandas frame\n",
+    "# to work with \n",
+    "\n",
+    "print('Shape of entire dataframe is ', data.shape)\n",
+    "data.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2a09813b",
+   "metadata": {},
+   "source": [
+    "# Data Cleaning  \n",
+    "## Checking for missing values"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 128,
+   "id": "509cbb8b",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "False"
+      ]
+     },
+     "execution_count": 128,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "    # check if any message bodies are null => empty\n",
+    "data['MESSAGE'].isnull().values.any()\n",
+    "# After checking \n",
+    "# there is no missing value in the message column"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 129,
+   "id": "06e2036a",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "True"
+      ]
+     },
+     "execution_count": 129,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "    # check if there are empty emails (string length zero)\n",
+    "(data.MESSAGE.str.len() == 0).any()\n",
+    "# There are some email that has string length of 0"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 130,
+   "id": "4bfb4a7b",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "3"
+      ]
+     },
+     "execution_count": 130,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "(data.MESSAGE.str.len() == 0).sum()\n",
+    "# There are 3 string of length 0"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 131,
+   "id": "0c65b42f",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0"
+      ]
+     },
+     "execution_count": 131,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "    # check the number of entries with null/None values?\n",
+    "data.MESSAGE.isnull().sum()\n",
+    "# There are no e-mail that has null value"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ac91acdd",
+   "metadata": {},
+   "source": [
+    "## Locate empty emails"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 132,
+   "id": "adbd3f56",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Index(['cmds', 'cmds', 'cmds'], dtype='object')"
+      ]
+     },
+     "execution_count": 132,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data[data.MESSAGE.str.len() == 0].index\n",
+    "# the empty e-mail is the e-mail file\n",
+    "# but they are system file"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f5e90c9b",
+   "metadata": {},
+   "source": [
+    "## Remove System File Entries from Dataframe"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 133,
+   "id": "12eb6a88",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # droping the e-mail that has the file name cmds\n",
+    "data.drop(['cmds'], inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "78bd5a6d",
+   "metadata": {},
+   "source": [
+    "# Add Document IDs to Track Emails in Dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 134,
+   "id": "b32f7899",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # the range of data frame\n",
+    "document_ids = range(0, len(data.index))\n",
+    "\n",
+    "    # create new column for the index as the id\n",
+    "data['DOC_ID'] = document_ids"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 135,
+   "id": "9b43eb00",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # crate the column for this file name\n",
+    "data['FILE_NAME'] = data.index\n",
+    "data.set_index('DOC_ID', inplace=True)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "14319338",
+   "metadata": {},
+   "source": [
+    "# Save to File using Pandas"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 136,
+   "id": "5994a978",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # use jason file format\n",
+    "data.to_json(DATA_JSON_FILE)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e12ad108",
+   "metadata": {},
+   "source": [
+    "# Explore and Visualise the data\n",
+    "\n",
+    "# Number of Spam Messages Visualised (Pie Charts)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 137,
+   "id": "a660e761",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # the number of the spam and non - spam message\n",
+    "    # store in the varible\n",
+    "\n",
+    "amount_of_spam = data.CATEGORY.value_counts()[1]\n",
+    "amount_of_ham = data.CATEGORY.value_counts()[0]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 138,
+   "id": "22c82895",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 454x454 with 1 Axes>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "    # Pie chart\n",
+    "category_names = ['Spam', 'Legit Mail']\n",
+    "sizes = [amount_of_spam, amount_of_ham]\n",
+    "custom_colours = ['#ff7675', '#74b9ff']\n",
+    "\n",
+    "plt.figure(figsize=(2, 2), dpi=227)\n",
+    "plt.pie(sizes, labels=category_names, textprops={'fontsize': 6}, startangle=90, \n",
+    "       autopct='%1.0f%%', colors=custom_colours, explode=[0, 0.1])\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "80ebd321",
+   "metadata": {},
+   "source": [
+    "# Prepare the e-mail for Baye's Classify work\n",
+    "\n",
+    "# Natural Language Processing\n",
+    "\n",
+    "####    to prepare the text for learing algorithm\n",
+    "####    convert to the form that algoritimn can understand"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8dfa0fed",
+   "metadata": {},
+   "source": [
+    "# Text - Pre-Processing "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ac181ce8",
+   "metadata": {},
+   "source": [
+    "### Download the NLTK Resources (Tokenizer & Stopwords)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 139,
+   "id": "7e3b8e5a",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[nltk_data] Downloading package punkt to\n",
+      "[nltk_data]     /Users/surapaphrompha/nltk_data...\n",
+      "[nltk_data]   Package punkt is already up-to-date!\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "True"
+      ]
+     },
+     "execution_count": 139,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nltk.download('punkt')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 140,
+   "id": "63fb47ea",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[nltk_data] Downloading package stopwords to\n",
+      "[nltk_data]     /Users/surapaphrompha/nltk_data...\n",
+      "[nltk_data]   Package stopwords is already up-to-date!\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "True"
+      ]
+     },
+     "execution_count": 140,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nltk.download('stopwords')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9c9019c3",
+   "metadata": {},
+   "source": [
+    "## Tokenising \n",
+    "####  (spliting the words in the sentence into individual words)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "51a1cfe5",
+   "metadata": {},
+   "source": [
+    "### Removing Stop Words\n",
+    "#### The stop word is not quite naive as classify as spam"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 141,
+   "id": "e183dd15",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# if use list it gonna spend more time than set\n",
+    "    # set has not order\n",
+    "# use the set to visialse whether each of the word is stop word\n",
+    "stop_words = set(stopwords.words('english'))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b26b6bbc",
+   "metadata": {},
+   "source": [
+    "###  Word Stems and Stemminng"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 142,
+   "id": "6270701b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "stemmer = SnowballStemmer('english')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b125dbc2",
+   "metadata": {},
+   "source": [
+    "### Removing Punctuation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b56405e7",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 143,
+   "id": "d3a1b4be",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "### Removing HTML tags from Emails  ###"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 144,
+   "id": "eec15719",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1) Fight The Risk of Cancer!\n",
+      "\n",
+      "http://www.adclick.ws/p.cfm?o=315&amp;s=pk007\n",
+      "\n",
+      "\n",
+      "\n",
+      "2) Slim Down - Guaranteed to lose 10-12 lbs in 30 days\n",
+      "\n",
+      "http://www.adclick.ws/p.cfm?o=249&amp;s=pk007\n",
+      "\n",
+      "\n",
+      "\n",
+      "3) Get the Child Support You Deserve - Free Legal Advice\n",
+      "\n",
+      "http://www.adclick.ws/p.cfm?o=245&amp;s=pk002\n",
+      "\n",
+      "\n",
+      "\n",
+      "4) Join the Web's Fastest Growing Singles Community\n",
+      "\n",
+      "http://www.adclick.ws/p.cfm?o=259&amp;s=pk007\n",
+      "\n",
+      "\n",
+      "\n",
+      "5) Start Your Private Photo Album Online!\n",
+      "\n",
+      "http://www.adclick.ws/p.cfm?o=283&amp;s=pk007\n",
+      "\n",
+      "\n",
+      "\n",
+      "Have a Wonderful Day,\n",
+      "\n",
+      "Offer Manager\n",
+      "\n",
+      "PrizeMama\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "\n",
+      "If you wish to leave this list please use the link below.\n",
+      "\n",
+      "http://www.qves.com/trim/?zzzz@spamassassin.taint.org%7C17%7C308417\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "                    # index name, column name\n",
+    "#data.at[2, 'MESSAGE']\n",
+    "soup = BeautifulSoup(data.at[2, 'MESSAGE'], 'html.parser')\n",
+    "print(soup.prettify())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 145,
+   "id": "bf2d7afe",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"1) Fight The Risk of Cancer!\\n\\nhttp://www.adclick.ws/p.cfm?o=315&s=pk007\\n\\n\\n\\n2) Slim Down - Guaranteed to lose 10-12 lbs in 30 days\\n\\nhttp://www.adclick.ws/p.cfm?o=249&s=pk007\\n\\n\\n\\n3) Get the Child Support You Deserve - Free Legal Advice\\n\\nhttp://www.adclick.ws/p.cfm?o=245&s=pk002\\n\\n\\n\\n4) Join the Web's Fastest Growing Singles Community\\n\\nhttp://www.adclick.ws/p.cfm?o=259&s=pk007\\n\\n\\n\\n5) Start Your Private Photo Album Online!\\n\\nhttp://www.adclick.ws/p.cfm?o=283&s=pk007\\n\\n\\n\\nHave a Wonderful Day,\\n\\nOffer Manager\\n\\nPrizeMama\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\n\\nIf you wish to leave this list please use the link below.\\n\\nhttp://www.qves.com/trim/?zzzz@spamassassin.taint.org%7C17%7C308417\\n\\n\\n\""
+      ]
+     },
+     "execution_count": 145,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# remove the html text\n",
+    "soup.get_text()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "09088769",
+   "metadata": {},
+   "source": [
+    "### Functions for Email Processing"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 146,
+   "id": "c92fc897",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# purpopse : to make all of the sentence in the body part of the e-mail to be lower case\n",
+    "#            and reomove the punctuation,and stop word\n",
+    "#            retun the anyswer in the array\n",
+    "def clean_message(message, stemmer=PorterStemmer(), \n",
+    "                 stop_words=set(stopwords.words('english'))):\n",
+    "    \n",
+    "    # Converts to Lower Case and splits up the words(tokening)\n",
+    "    words = word_tokenize(message.lower())\n",
+    "    \n",
+    "    filtered_words = []\n",
+    "    \n",
+    "    for word in words:\n",
+    "        # Removes the stop words and and is not punctuation\n",
+    "        if word not in stop_words and word.isalpha():\n",
+    "            # append the answer in the filter\n",
+    "            filtered_words.append(stemmer.stem(word))\n",
+    "    \n",
+    "    return filtered_words"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 147,
+   "id": "554854ae",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['dear',\n",
+       " 'mr',\n",
+       " 'still',\n",
+       " 'good',\n",
+       " 'tide',\n",
+       " 'staff',\n",
+       " 'festiv',\n",
+       " 'season',\n",
+       " 'ahead',\n",
+       " 'christma',\n",
+       " 'crux',\n",
+       " 'fulli',\n",
+       " 'qualifi',\n",
+       " 'santa',\n",
+       " 'clau',\n",
+       " 'wonder',\n",
+       " 'whether',\n",
+       " 'might',\n",
+       " 'consid',\n",
+       " 'run',\n",
+       " 'santa',\n",
+       " 'grotto',\n",
+       " 'store',\n",
+       " 'wait',\n",
+       " 'probabl',\n",
+       " 'think',\n",
+       " 'make',\n",
+       " 'special',\n",
+       " 'well',\n",
+       " 'first',\n",
+       " 'made',\n",
+       " 'sever',\n",
+       " 'chang',\n",
+       " 'characteris',\n",
+       " 'father',\n",
+       " 'christma',\n",
+       " 'rather',\n",
+       " 'greet',\n",
+       " 'children',\n",
+       " 'shout',\n",
+       " 'ho',\n",
+       " 'ho',\n",
+       " 'ho',\n",
+       " 'prefer',\n",
+       " 'whisper',\n",
+       " 'phrase',\n",
+       " 'depend',\n",
+       " 'unfathom',\n",
+       " 'cruel',\n",
+       " 'world',\n",
+       " 'live',\n",
+       " 'addit',\n",
+       " 'gift',\n",
+       " 'rang',\n",
+       " 'felt',\n",
+       " 'hoop',\n",
+       " 'holder',\n",
+       " 'note',\n",
+       " 'also',\n",
+       " 'enclos',\n",
+       " 'sketch',\n",
+       " 'radic',\n",
+       " 'redesign',\n",
+       " 'santa',\n",
+       " 'outfit',\n",
+       " 'renam',\n",
+       " 'charact',\n",
+       " 'lord',\n",
+       " 'buckl',\n",
+       " 'would',\n",
+       " 'interest',\n",
+       " 'employ',\n",
+       " 'promis',\n",
+       " 'never',\n",
+       " 'let',\n",
+       " 'look',\n",
+       " 'forward',\n",
+       " 'hear',\n",
+       " 'best',\n",
+       " 'wish',\n",
+       " 'robin',\n",
+       " 'cooper',\n",
+       " 'excerpt',\n",
+       " 'book',\n",
+       " 'timewast',\n",
+       " 'letter',\n",
+       " 'robin',\n",
+       " 'cooper']"
+      ]
+     },
+     "execution_count": 147,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "### for testing\n",
+    "clean_message(email_body)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 148,
+   "id": "0cfacbe7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def clean_msg_no_html(message, stemmer=PorterStemmer(), \n",
+    "                 stop_words=set(stopwords.words('english'))):\n",
+    "    \n",
+    "    # Remove HTML tags\n",
+    "    soup = BeautifulSoup(message, 'html.parser')\n",
+    "    cleaned_text = soup.get_text()\n",
+    "    \n",
+    "    # Converts to Lower Case and splits up the words\n",
+    "    words = word_tokenize(cleaned_text.lower())\n",
+    "    \n",
+    "    filtered_words = []\n",
+    "    \n",
+    "    for word in words:\n",
+    "        # Removes the stop words and punctuation\n",
+    "        if word not in stop_words and word.isalpha():\n",
+    "            filtered_words.append(stemmer.stem(word))\n",
+    "        # filtered_words.append(word) \n",
+    "    \n",
+    "    return filtered_words"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 149,
+   "id": "1a4470fb",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['fight',\n",
+       " 'risk',\n",
+       " 'cancer',\n",
+       " 'http',\n",
+       " 'slim',\n",
+       " 'guarante',\n",
+       " 'lose',\n",
+       " 'lb',\n",
+       " 'day',\n",
+       " 'http',\n",
+       " 'get',\n",
+       " 'child',\n",
+       " 'support',\n",
+       " 'deserv',\n",
+       " 'free',\n",
+       " 'legal',\n",
+       " 'advic',\n",
+       " 'http',\n",
+       " 'join',\n",
+       " 'web',\n",
+       " 'fastest',\n",
+       " 'grow',\n",
+       " 'singl',\n",
+       " 'commun',\n",
+       " 'http',\n",
+       " 'start',\n",
+       " 'privat',\n",
+       " 'photo',\n",
+       " 'album',\n",
+       " 'onlin',\n",
+       " 'http',\n",
+       " 'wonder',\n",
+       " 'day',\n",
+       " 'offer',\n",
+       " 'manag',\n",
+       " 'prizemama',\n",
+       " 'wish',\n",
+       " 'leav',\n",
+       " 'list',\n",
+       " 'pleas',\n",
+       " 'use',\n",
+       " 'link',\n",
+       " 'http',\n",
+       " 'zzzz']"
+      ]
+     },
+     "execution_count": 149,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "### for testing\n",
+    "clean_msg_no_html(data.at[2, 'MESSAGE'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ae761800",
+   "metadata": {},
+   "source": [
+    "# Apply Cleaning and Tokenisation to all messages\n",
+    "\n",
+    "### Slicing Dataframes and Series & Creating Subsets\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 150,
+   "id": "f08b4382",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/opt/anaconda3/lib/python3.8/site-packages/bs4/__init__.py:417: MarkupResemblesLocatorWarning: \"http://www.post-gazette.com/columnists/20020905brian5\n",
+      "\" looks like a URL. Beautiful Soup is not an HTTP client. You should probably use an HTTP client like requests to get the document behind the URL, and feed that document to Beautiful Soup.\n",
+      "  warnings.warn(\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "CPU times: user 46.8 s, sys: 449 ms, total: 47.2 s\n",
+      "Wall time: 47.5 s\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%time\n",
+    "\n",
+    "# Remove the Html tag to all of the message\n",
+    "# use apply() on all the messages in the dataframe\n",
+    "nested_list = data.MESSAGE.apply(clean_msg_no_html)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b4575a44",
+   "metadata": {},
+   "source": [
+    "### Using Logic to Slice Dataframes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 151,
+   "id": "5437c3aa",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# create two variables (doc_ids_spam, doc_ids_ham) which \n",
+    "# hold onto the indices for the spam and the non-spam emails respectively. \n",
+    "doc_ids_spam = data[data.CATEGORY == 1].index\n",
+    "doc_ids_ham = data[data.CATEGORY == 0].index"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 152,
+   "id": "c35f5780",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Int64Index([1896, 1897, 1898, 1899, 1900, 1901, 1902, 1903, 1904, 1905,\n",
+       "            ...\n",
+       "            5786, 5787, 5788, 5789, 5790, 5791, 5792, 5793, 5794, 5795],\n",
+       "           dtype='int64', name='DOC_ID', length=3900)"
+      ]
+     },
+     "execution_count": 152,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "doc_ids_ham"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b1df7f30",
+   "metadata": {},
+   "source": [
+    "### Subsetting a Series with an Index"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 153,
+   "id": "a57047e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "nested_list_ham = nested_list.loc[doc_ids_ham]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 154,
+   "id": "2bd37ac2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "nested_list_spam = nested_list.loc[doc_ids_spam]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 155,
+   "id": "8b4ac30a",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "20815"
+      ]
+     },
+     "execution_count": 155,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# use python list comprehension and then find the total number of \n",
+    "# words in our cleaned dataset of spam email bodies.\n",
+    "flat_list_ham = [item for sublist in nested_list_ham for item in sublist]\n",
+    "normal_words = pd.Series(flat_list_ham).value_counts()\n",
+    "\n",
+    "normal_words.shape[0] # total number of unique words in the non-spam messages"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 156,
+   "id": "2c84d397",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "13242"
+      ]
+     },
+     "execution_count": 156,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# use python list comprehension and then find the total number of \n",
+    "# words in our cleaned dataset of spam email bodies.\n",
+    "flat_list_spam = [item for sublist in nested_list_spam for item in sublist]\n",
+    "spammy_words = pd.Series(flat_list_spam).value_counts()\n",
+    "\n",
+    "spammy_words.shape[0] # total number of unique words in the spam messages"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "11b9048c",
+   "metadata": {},
+   "source": [
+    "## Generate Vocabulary & Dictionary"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 157,
+   "id": "99155577",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/opt/anaconda3/lib/python3.8/site-packages/bs4/__init__.py:417: MarkupResemblesLocatorWarning: \"http://www.post-gazette.com/columnists/20020905brian5\n",
+      "\" looks like a URL. Beautiful Soup is not an HTTP client. You should probably use an HTTP client like requests to get the document behind the URL, and feed that document to Beautiful Soup.\n",
+      "  warnings.warn(\n"
+     ]
+    }
+   ],
+   "source": [
+    "# 2500 most frequency word gonna form our vocaburary\n",
+    "stemmed_nested_list = data.MESSAGE.apply(clean_msg_no_html)\n",
+    "flat_stemmed_list = [item for sublist in stemmed_nested_list for item in sublist]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 158,
+   "id": "307f59f7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# generate panda serie and use value count methd\n",
+    "unique_words = pd.Series(flat_stemmed_list).value_counts()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 159,
+   "id": "682e05b8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # Create subset of the series called 'frequent_words' that only contains\n",
+    "    # the most common 2,500 words out of the total. \n",
+    "    # vocab size = 2500\n",
+    "frequent_words = unique_words[0:VOCAB_SIZE]\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "021d9f65",
+   "metadata": {},
+   "source": [
+    "## Create Vocabulary DataFrame with a WORD_ID"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 160,
+   "id": "7b01fa7c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# assing the word id in each word\n",
+    "# store answer in the list and store the the word_ids\n",
+    "# store it in the data frame\n",
+    "word_ids = list(range(0, VOCAB_SIZE))\n",
+    "vocab = pd.DataFrame({'VOCAB_WORD': frequent_words.index.values}, index=word_ids)\n",
+    "vocab.index.name = 'WORD_ID'\n",
+    "# this is the vocabury that I will train our classifier"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a9e6c0ba",
+   "metadata": {},
+   "source": [
+    "##  Save the Vocabulary as a CSV File"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 161,
+   "id": "7737bc3a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "vocab.to_csv(WORD_ID_FILE, index_label=vocab.index.name, header=vocab.VOCAB_WORD.name)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "486dffd3",
+   "metadata": {},
+   "source": [
+    "## Generate Features & a Sparse Matrix"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "06095436",
+   "metadata": {},
+   "source": [
+    "### Creating a DataFrame with one Word per Column"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ce290adf",
+   "metadata": {},
+   "source": [
+    "##### (The sparse matrix only include the row which have the word occurs in the e-mail)\n",
+    "##### (It will remove empty matrix)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 162,
+   "id": "dedbff4d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # working with stem_nested list\n",
+    "    # each row contain the list of word for each document in the e-mail\n",
+    "    # the stem_nested list is the list\n",
+    "    # will convert in to list that contain the list by to list\n",
+    "    # and convert in to dataframe\n",
+    "word_columns_df = pd.DataFrame.from_records(stemmed_nested_list.tolist())\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d3841b53",
+   "metadata": {},
+   "source": [
+    "### Splitting the Data into a Training and Testing Dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 163,
+   "id": "3faa4475",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # split the data into a training and testing set\n",
+    "    # Set the test size at 30%. \n",
+    "    # The training data is comprise of 4057 emails. \n",
+    "    # Use a seed value of 42 to shuffle the data. \n",
+    "\n",
+    "X_train, X_test, y_train, y_test = train_test_split(word_columns_df, data.CATEGORY,\n",
+    "                                                   test_size=0.3, random_state=42)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 164,
+   "id": "f2df4742",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# print('Nr of training samples', X_train.shape[0])\n",
+    "# print('Fraction of training set', X_train.shape[0] / word_columns_df.shape[0])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 165,
+   "id": "5865b147",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "X_train.index.name = X_test.index.name = 'DOC_ID'\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9a0fa403",
+   "metadata": {},
+   "source": [
+    "### Create a Sparse Matrix for the Training Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 166,
+   "id": "63e5eaf9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "word_index = pd.Index(vocab.VOCAB_WORD)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 167,
+   "id": "d1ad359e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # take x-train to create the sparse matrix\n",
+    "def make_sparse_matrix(df, indexed_words, labels):\n",
+    "        \"\"\"\n",
+    "        Returns sparse matrix as dataframe.\n",
+    "    \n",
+    "        df: A dataframe with words in the columns with a document id as an index (X_train or X_test)\n",
+    "        indexed_words: index of words ordered by word id\n",
+    "        labels: category as a series (y_train or y_test)\n",
+    "        \"\"\"\n",
+    "    \n",
+    "        nr_rows = df.shape[0]\n",
+    "        nr_cols = df.shape[1]\n",
+    "        word_set = set(indexed_words)\n",
+    "        dict_list = []\n",
+    "        \n",
+    "        for i in range(nr_rows):\n",
+    "            for j in range(nr_cols):\n",
+    "            \n",
+    "                word = df.iat[i, j]\n",
+    "                if word in word_set:\n",
+    "                    doc_id = df.index[i]\n",
+    "                    word_id = indexed_words.get_loc(word)\n",
+    "                    # y value at document id\n",
+    "                    category = labels.at[doc_id]\n",
+    "                \n",
+    "                    item = {'LABEL': category, 'DOC_ID': doc_id,\n",
+    "                       'OCCURENCE': 1, 'WORD_ID': word_id}\n",
+    "                \n",
+    "                    dict_list.append(item)\n",
+    "                # data frame that create from the loop\n",
+    "        return pd.DataFrame(dict_list)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ef321ecb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%time\n",
+    "sparse_train_df = make_sparse_matrix(X_train, word_index, y_train)\n",
+    "# pass a lot of data go through the data frame"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4775daab",
+   "metadata": {},
+   "source": [
+    "### Combine Occurrences with the Pandas groupby() Method"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7745f831",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # grouping the word by e-mail\n",
+    "train_grouped = sparse_train_df.groupby(['DOC_ID', 'WORD_ID', 'LABEL']).sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d029db78",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_grouped = train_grouped.reset_index()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b1a9c580",
+   "metadata": {},
+   "source": [
+    "### Save Training Data as .txt File"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "01f87c1f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "np.savetxt(TRAINING_DATA_FILE, train_grouped, fmt='%d')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8493b072",
+   "metadata": {},
+   "source": [
+    "## Create a Sparse Matrix for the Testing Data¶"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "874b597b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # create a sparse matrix for the test data.\n",
+    "%%time\n",
+    "sparse_test_df = make_sparse_matrix(X_test, word_index, y_test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "548715e0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # group the occurrences of the same word in the same email.¶\n",
+    "test_grouped = sparse_test_df.groupby(['DOC_ID', 'WORD_ID', 'LABEL']).sum().reset_index()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "94617366",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # save the data as a .txt file.¶\n",
+    "np.savetxt(TEST_DATA_FILE, test_grouped, fmt='%d')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ae66b231",
+   "metadata": {},
+   "source": [
+    "## Checking"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9c466900",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    #started with 5796 emails. \n",
+    "    # I split it into 4057 emails for training and 1739 emails for testing.\n",
+    "    # check for the number of the emails that were included in the testing .txt file\n",
+    "    #Count the number in the test_grouped DataFrame. \n",
+    "# After splitting and shuffling our data, how many emails were included in the X_test DataFrame? \n",
+    "# Is the number the same? \n",
+    "# If not, which emails were excluded and why? Compare the DOC_ID values to find out."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1ad75664",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_doc_ids = set(train_grouped.DOC_ID)\n",
+    "test_doc_ids = set(test_grouped.DOC_ID)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6ca13a00",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # Excluded emails after pre-processing\n",
+    "set(X_test.index.values) - test_doc_ids \n",
+    "    # the word is not the part of the vocabulary or it is html tag"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "068b3409",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.8"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
