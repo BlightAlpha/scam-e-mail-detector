@@ -1,0 +1,540 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "886349df",
+   "metadata": {},
+   "source": [
+    "# Notebook Imports"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d1c95947",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "99b01d9d",
+   "metadata": {},
+   "source": [
+    "# Constants"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "11af15b5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "TRAINING_DATA_FILE = 'SpamData/SpamData/02_Training/train-data.txt'\n",
+    "TEST_DATA_FILE = 'SpamData/SpamData/02_Training/test-data.txt'\n",
+    "\n",
+    "TOKEN_SPAM_PROB_FILE = 'SpamData/SpamData/03_Testing/prob-spam.txt'\n",
+    "TOKEN_HAM_PROB_FILE = 'SpamData/SpamData/03_Testing/prob-nonspam.txt'\n",
+    "TOKEN_ALL_PROB_FILE = 'SpamData/SpamData/03_Testing/prob-all-tokens.txt'\n",
+    "\n",
+    "TEST_FEATURE_MATRIX = 'SpamData/SpamData/03_Testing/test-features.txt'\n",
+    "TEST_TARGET_FILE = 'SpamData/SpamData/03_Testing/test-target.txt'\n",
+    "\n",
+    "VOCAB_SIZE = 2500"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5d19af0e",
+   "metadata": {},
+   "source": [
+    "# Read and Load Features from .txt Files into NumPy Array"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "70002029",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "                            # the relative path to the data file   data type\n",
+    "sparse_train_data = np.loadtxt(TRAINING_DATA_FILE, delimiter=' ', dtype=int)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "39d22562",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sparse_test_data = np.loadtxt(TEST_DATA_FILE, delimiter=' ', dtype=int)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "04149e34",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # this is for checking \n",
+    "print('Nr of rows in training file', sparse_train_data.shape[0])\n",
+    "print('Nr of rows in test file', sparse_test_data.shape[0])\n",
+    "print('Nr of emails in training file', np.unique(sparse_train_data[:, 0]).size)\n",
+    "print('Nr of emails in test file', np.unique(sparse_test_data[:, 0]).size)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4ad00a9a",
+   "metadata": {},
+   "source": [
+    "### Create an Empty DataFrame"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c9d615d7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "column_names = ['DOC_ID'] + ['CATEGORY'] + list(range(0, VOCAB_SIZE))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e8ba4734",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "index_names = np.unique(sparse_train_data[:, 0])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "be02ede6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "full_train_data = pd.DataFrame(index=index_names, columns=column_names)\n",
+    "full_train_data.fillna(value=0, inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "42577978",
+   "metadata": {},
+   "source": [
+    "# Create a Full Matrix from a Sparse Matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e45a7f02",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def make_full_matrix(sparse_matrix, nr_words, doc_idx=0, word_idx=1, cat_idx=2, freq_idx=3):\n",
+    "    \"\"\"\n",
+    "    Form a full matrix from a sparse matrix. Return a pandas dataframe. \n",
+    "    Keyword arguments:\n",
+    "    sparse_matrix -- numpy array\n",
+    "    nr_words -- size of the vocabulary. Total number of tokens. \n",
+    "    doc_idx -- position of the document id in the sparse matrix. Default: 1st column\n",
+    "    word_idx -- position of the word id in the sparse matrix. Default: 2nd column\n",
+    "    cat_idx -- position of the label (spam is 1, nonspam is 0). Default: 3rd column\n",
+    "    freq_idx -- position of occurrence of word in sparse matrix. Default: 4th column\n",
+    "    \"\"\"\n",
+    "    column_names = ['DOC_ID'] + ['CATEGORY'] + list(range(0, VOCAB_SIZE))\n",
+    "    doc_id_names = np.unique(sparse_matrix[:, 0])\n",
+    "    full_matrix = pd.DataFrame(index=doc_id_names, columns=column_names)\n",
+    "    full_matrix.fillna(value=0, inplace=True)\n",
+    "            # the number of row in sparse matrix\n",
+    "    for i in range(sparse_matrix.shape[0]):\n",
+    "        doc_nr = sparse_matrix[i][doc_idx]\n",
+    "        word_id = sparse_matrix[i][word_idx]\n",
+    "        label = sparse_matrix[i][cat_idx]\n",
+    "        occurrence = sparse_matrix[i][freq_idx]\n",
+    "        \n",
+    "        full_matrix.at[doc_nr, 'DOC_ID'] = doc_nr\n",
+    "        full_matrix.at[doc_nr, 'CATEGORY'] = label\n",
+    "        full_matrix.at[doc_nr, word_id] = occurrence\n",
+    "    \n",
+    "    full_matrix.set_index('DOC_ID', inplace=True)\n",
+    "    return full_matrix\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "07d52179",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%time\n",
+    "full_train_data = make_full_matrix(sparse_train_data, VOCAB_SIZE)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9708441f",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Training the Naive Bayes Model\n",
+    "\n",
+    "### Calculating the Probability of Spam"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "fa4b9bb0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Calculate the probability of spam - the percent of spam messages in the training\n",
+    "# dataset. Store this value in a variable called prob_spam"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "70e03b7a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "prob_spam = full_train_data.CATEGORY.sum() / full_train_data.CATEGORY.size\n",
+    "print('Probability of spam is', prob_spam)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "93aa0790",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Total Number of Words / Tokens"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2b241bf3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "    # take all of the column except for the category\n",
+    "full_train_features = full_train_data.loc[:, full_train_data.columns != 'CATEGORY']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4b44c270",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "email_lengths = full_train_features.sum(axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2e2c39ab",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "total_wc = email_lengths.sum()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "895fca4c",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Number of Tokens in Spam & Ham Emails"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "45933e17",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create a subset of the email_lengths series that only contains the spam messages \n",
+    "#Call the subset spam_lengths. Then count the total number of words that occur in spam emails.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e63601d8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spam_lengths = email_lengths[full_train_data.CATEGORY == 1]\n",
+    "spam_wc = spam_lengths.sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ce316d42",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create a subset called ham_lengths. \n",
+    "# Then count the total number of words that occur in the ham emails."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "22825306",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ham_lengths = email_lengths[full_train_data.CATEGORY == 0]\n",
+    "nonspam_wc = ham_lengths.sum()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9b8803b7",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Summing the Tokens Occuring in Spam"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e84de219",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_spam_tokens = full_train_features.loc[full_train_data.CATEGORY == 1]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "551dc0ea",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "summed_spam_tokens = train_spam_tokens.sum(axis=0) + 1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "155e69d1",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Summing the Tokens Occuring in Ham"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "376b518c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Sum the tokens that occur in the \n",
+    "# non-spam messages. Store the values in a variable called summed_ham_tokens\n",
+    "\n",
+    "train_ham_tokens = full_train_features.loc[full_train_data.CATEGORY == 0]\n",
+    "summed_ham_tokens = train_ham_tokens.sum(axis=0) + 1"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1d4b0094",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_ham_tokens[2499].sum() + 1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a3bb0ebf",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## P(Token | Spam) - Probability that a Token Occurs given the Email is Spam\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "97475d9d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "prob_tokens_spam = summed_spam_tokens / (spam_wc + VOCAB_SIZE)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c6eda2e4",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## P(Token | Ham) - Probability that a Token Occurs given the Email is Nonspam\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b89a6667",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "prob_tokens_nonspam = summed_ham_tokens / (nonspam_wc + VOCAB_SIZE)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "63cf1619",
+   "metadata": {},
+   "source": [
+    "\n",
+    "##  P(Token) - Probability that Token Occurs\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "53be9ec0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "prob_tokens_all = full_train_features.sum(axis=0) / total_wc"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "0edee617",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Save the Trained Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "75a83dd7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "np.savetxt(TOKEN_SPAM_PROB_FILE, prob_tokens_spam)\n",
+    "np.savetxt(TOKEN_HAM_PROB_FILE, prob_tokens_nonspam)\n",
+    "np.savetxt(TOKEN_ALL_PROB_FILE, prob_tokens_all)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "605e386d",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Prepare Test Data\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b3fe3946",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create a full matrix from the sparse_test_data. \n",
+    "# Time the function call. How long does it take \n",
+    "# Separate the features and the target values. \n",
+    "# Save these as separate .txt files: a TEST_TARGET_FILE and a TEST_FEATURE_MATRIX file."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b2ad0b90",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%time\n",
+    "full_test_data = make_full_matrix(sparse_test_data, nr_words=VOCAB_SIZE)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bdf25936",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "X_test = full_test_data.loc[:, full_test_data.columns != 'CATEGORY']\n",
+    "y_test = full_test_data.CATEGORY"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ff112bfc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "np.savetxt(TEST_TARGET_FILE, y_test)\n",
+    "np.savetxt(TEST_FEATURE_MATRIX, X_test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e8f54058",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.8"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
